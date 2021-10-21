@@ -53,7 +53,7 @@ void check_data(void)
     float voltage;
 
 
-    st = mpk_map_search(msg_buf, NULL, NULL, (uint8_t *)&voltage, NULL,
+    st = mpk_map_search(msg_buf, NULL, NULL, &voltage, NULL,
                         "data", "voltage", NULL);       // must end with NULL
     if (st == MPK_FLOAT)
         printf("found data.voltage: %f\n", voltage);
@@ -78,7 +78,7 @@ void check_data(void)
         printf("data.angle[] length: %d\n", num);
         for (int i = 0; i < num; i++) {
             int32_t val;                                // val must be at least 4 bytes
-            st = mpk_parse(pos, NULL, &end, (uint8_t *)&val, NULL);
+            st = mpk_parse(pos, NULL, &end, &val, NULL);
             if (st != MPK_INT && st != MPK_UINT) {
                 printf("  parse data.angle error\n");
                 break;

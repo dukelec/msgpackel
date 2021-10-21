@@ -26,12 +26,10 @@ uint8_t *mpk_w_int(uint8_t *buf, int32_t val)
         put_unaligned16(val, buf + 1);
         return buf + 1 + 2;
     }
-    if (val >= INT32_MIN && val <= INT32_MAX) { // int32
-        *buf = 0xd2;
-        put_unaligned32(val, buf + 1);
-        return buf + 1 + 4;
-    }
-    return NULL;
+
+    *buf = 0xd2; // int32
+    put_unaligned32(val, buf + 1);
+    return buf + 1 + 4;
 }
 
 uint8_t *mpk_w_uint(uint8_t *buf, uint32_t val)
@@ -46,13 +44,27 @@ uint8_t *mpk_w_uint(uint8_t *buf, uint32_t val)
         put_unaligned16(val, buf + 1);
         return buf + 1 + 2;
     }
-    if (val <= UINT32_MAX) { // uint32
-        *buf = 0xce;
-        put_unaligned32(val, buf + 1);
-        return buf + 1 + 4;
-    }
-    return NULL;
+
+    *buf = 0xce; // uint32
+    put_unaligned32(val, buf + 1);
+    return buf + 1 + 4;
 }
+
+#ifdef MPK_64BIT
+uint8_t *mpk_w_int64(uint8_t *buf, int64_t val)
+{
+    *buf = 0xd3;
+    memcpy(buf + 1, &val, 8);
+    return buf + 1 + 8;
+}
+
+uint8_t *mpk_w_uint64(uint8_t *buf, uint64_t val)
+{
+    *buf = 0xcf;
+    memcpy(buf + 1, &val, 8);
+    return buf + 1 + 8;
+}
+#endif
 
 uint8_t *mpk_w_nil(uint8_t *buf)
 {
@@ -72,6 +84,15 @@ uint8_t *mpk_w_float(uint8_t *buf, float val)
     memcpy(buf + 1, &val, 4);
     return buf + 1 + 4;
 }
+
+#ifdef MPK_64BIT
+uint8_t *mpk_w_float64(uint8_t *buf, double val)
+{
+    *buf = 0xcb;
+    memcpy(buf + 1, &val, 8);
+    return buf + 1 + 8;
+}
+#endif
 
 uint8_t *mpk_w_str(uint8_t *buf, char *str)
 {
@@ -117,19 +138,36 @@ uint8_t *mpk_w_bin(uint8_t *buf, uint8_t *dat, size_t len)
     return buf + 1 + 4 + len;
 }
 
+uint8_t *mpk_w_ext(uint8_t *buf, int8_t type, uint8_t *dat, size_t len)
+{
+    if (len && !(len & (len - 1)) && len <= 16) {
+        int bf = ffs(len);
+        *buf = 0xd4 + bf - 1; // fix-ext
+        *(int8_t *)(buf + 1) = type;
+        memcpy(buf + 1 + 1, dat, len);
+        return buf + 1 + 1 + len;
+    }
+    if (len <= 255) {
+        *buf = 0xc7; // ext8
+        *(buf + 1) = len;
+        *(int8_t *)(buf + 2) = type;
+        memcpy(buf + 1 + 2, dat, len);
+        return buf + 1 + 2 + len;
+    }
+    return NULL;
+}
+
 uint8_t *mpk_w_array_hdr(uint8_t *buf, size_t num)
 {
     if (num <= 15) {
         *buf = 0x90 | num; // fix-array
         return buf + 1;
     }
-
     if (num <= 65535) {
         *buf = 0xdc; // array16
         put_unaligned16(num, buf + 1);
         return buf + 1 + 2;
     }
-
     return NULL;
 }
 
@@ -139,23 +177,25 @@ uint8_t *mpk_w_map_hdr(uint8_t *buf, size_t num)
         *buf = 0x80 | num; // fix-map
         return buf + 1;
     }
-
     if (num <= 65535) {
         *buf = 0xde; // map16
         put_unaligned16(num, buf + 1);
         return buf + 1 + 2;
     }
-
     return NULL;
 }
 
 
-mpk_t mpk_parse(uint8_t *buf, uint8_t **payload, uint8_t **end, uint8_t *val, size_t *num)
+mpk_t mpk_parse(uint8_t *buf, uint8_t **payload, uint8_t **end, void *val, size_t *num)
 {
     mpk_t type = MPK_ERR;
     uint8_t *_payload = buf + 1;
     uint8_t *_end = buf + 1;
+#ifdef MPK_64BIT
+    uint8_t _val[8] = {0};
+#else
     uint8_t _val[4] = {0};
+#endif
     size_t _num = 0;
 
     if (*buf <= 0x7f || *buf >= 0xe0) { // fix-int
@@ -188,6 +228,13 @@ mpk_t mpk_parse(uint8_t *buf, uint8_t **payload, uint8_t **end, uint8_t *val, si
         *(uint32_t *)_val = get_unaligned32(buf + 1);
         type = MPK_UINT;
 
+#ifdef MPK_64BIT
+    } else if (*buf == 0xd3 || *buf == 0xcf) { // int64, uint64
+        _end = buf + 1 + 8;
+        memcpy(_val, buf + 1, 8);
+        type = (*buf == 0xd3) ? MPK_INT64 : MPK_UINT64;
+#endif
+
     } else if (*buf == 0xc0) { // nil
         _payload = buf;
         type = MPK_NIL;
@@ -196,10 +243,23 @@ mpk_t mpk_parse(uint8_t *buf, uint8_t **payload, uint8_t **end, uint8_t *val, si
         *(uint32_t *)_val = *_payload & 1;
         type = MPK_BOOL;
 
-    } else if (*buf == 0xca) { // float
+    } else if (*buf == 0xca) { // float32
         _end = buf + 1 + 4;
         memcpy(_val, buf + 1, 4);
         type = MPK_FLOAT;
+
+    } else if (*buf == 0xcb) { // float64
+        _end = buf + 1 + 8;
+#ifdef MPK_64BIT
+        memcpy(_val, buf + 1, 8);
+        type = MPK_FLOAT64;
+#else
+        double tmp64;
+        memcpy(&tmp64, buf + 1, 8);
+        float tmp32 = tmp64;
+        memcpy(_val, &tmp32, 4);
+        type = MPK_FLOAT;
+#endif
 
     } else if ((*buf & 0xe0) == 0xa0) { // fix-str
         _end = buf + 1 + (*buf & 0x1f);
@@ -260,14 +320,30 @@ mpk_t mpk_parse(uint8_t *buf, uint8_t **payload, uint8_t **end, uint8_t *val, si
         type = MPK_MAP;
     }
 
+    else if (*buf >= 0xd4 && *buf <= 0xd8) { // fix-ext
+        uint8_t len = 1 << (*buf - 0xd4);
+        *(int32_t *)_val = *(int8_t *)(buf + 1);
+        _payload = buf + 2;
+        _end = _payload + len;
+        type = MPK_EXT;
+    }
+
+    else if (*buf == 0xc7) { // ext8
+        uint8_t len = *(buf + 1);
+        *(int32_t *)_val = *(int8_t *)(buf + 2);
+        _payload = buf + 3;
+        _end = _payload + len;
+        type = MPK_EXT;
+    }
+
     if (payload) *payload = _payload;
     if (end) *end = _end;
-    if (val) memcpy(val, _val, 4);
+    if (val) memcpy(val, _val, type > MPK_MAP ? 8 : 4);
     if (num) *num = _num;
     return type;
 }
 
-mpk_t mpk_map_search(uint8_t *buf, uint8_t **payload, uint8_t **end, uint8_t *val, size_t *num, ...)
+mpk_t mpk_map_search(uint8_t *buf, uint8_t **payload, uint8_t **end, void *val, size_t *num, ...)
 {
     va_list va;
     char *key;
