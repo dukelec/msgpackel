@@ -208,7 +208,7 @@
 			}
 			else if (sec >= 0 && sec < 0x400000000) {   // 30 bit nanoseconds, 34 bit seconds
 				let ns = data.getMilliseconds() * 1000000;
-				appendBytes([0xd7, 0xff, sec, sec >>> 8, sec >>> 16, sec >>> 24, ((ns << 2) >>> 0) | (sec / pow32), ns >>> 6, ns >>> 14, ns >>> 22]);
+				appendBytes([0xd7, 0xff, ns, ns >>> 8, ns >>> 16, (ns >>> 24) | ((sec & 3) << 6), sec >>> 2, sec >>> 10, sec >>> 18, sec >> 26]);
 			}
 			else {   // 32 bit nanoseconds, 64 bit seconds, negative values allowed
 				let ns = data.getMilliseconds() * 1000000;
@@ -429,15 +429,15 @@
 				return new Date(sec * 1000);
 			}
 			if (data.length === 8) {
-				let ns = ((data[7] << 22) >>> 0) +
-					((data[6] << 14) >>> 0) +
-					((data[5] << 6) >>> 0) +
-					(data[4] >>> 2);
-				let sec = ((data[4] & 0x3) * pow32) +
-					((data[3] << 24) >>> 0) +
+				let ns = (((data[3] & 0x3f) << 24) >>> 0) +
 					((data[2] << 16) >>> 0) +
 					((data[1] << 8) >>> 0) +
 					data[0];
+				let sec = ((data[7] << 26) >>> 0) +
+					((data[6] << 18) >>> 0) +
+					((data[5] << 10) >>> 0) +
+					((data[4] << 2) >>> 0) +
+					(data[3] >>> 6);
 				return new Date(sec * 1000 + ns / 1000000);
 			}
 			if (data.length === 12) {

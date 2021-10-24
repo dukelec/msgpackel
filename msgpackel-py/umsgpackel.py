@@ -411,8 +411,8 @@ def _pack_ext_timestamp(obj, fp, options):
         fp.write(b"\xd6\xff" + struct.pack("<I", seconds))
     elif 0 <= seconds <= 2**34 - 1:
         # 64-bit timestamp
-        value = ((microseconds * 1000) << 34) | seconds
-        fp.write(b"\xd7\xff" + struct.pack("<Q", value))
+        value = (microseconds * 1000) | ((seconds & 3) << 30)
+        fp.write(b"\xd7\xff" + struct.pack("<II", value, seconds >> 2))
     elif -2**63 <= abs(seconds) <= 2**63 - 1:
         # 96-bit timestamp
         fp.write(b"\xc7\x0c\xff" + struct.pack("<Iq", microseconds * 1000, seconds))
@@ -859,9 +859,10 @@ def _unpack_ext_timestamp(ext_data, options):
         microseconds = 0
     elif obj_len == 8:
         # 64-bit timestamp
-        value = struct.unpack("<Q", ext_data)[0]
-        seconds = value & 0x3ffffffff
-        microseconds = (value >> 34) // 1000
+        value_l = struct.unpack("<I", ext_data[0:4])[0]
+        value_h = struct.unpack("<I", ext_data[4:8])[0]
+        microseconds = (value_l & 0x3ffffffff) // 1000
+        seconds = (value_h << 2) | (value_l >> 30)
     elif obj_len == 12:
         # 96-bit timestamp
         seconds = struct.unpack("<q", ext_data[4:12])[0]
