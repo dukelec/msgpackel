@@ -92,23 +92,23 @@
 					appendBytes([0xd0, data]);
 				}
 				else if (data > 0 && data <= 0xffff) {   // uint16
-					appendBytes([0xcd, data >>> 8, data]);
+					appendBytes([0xcd, data, data >>> 8]);
 				}
 				else if (data >= -0x8000 && data <= 0x7fff) {   // int16
-					appendBytes([0xd1, data >>> 8, data]);
+					appendBytes([0xd1, data, data >>> 8]);
 				}
 				else if (data > 0 && data <= 0xffffffff) {   // uint32
-					appendBytes([0xce, data >>> 24, data >>> 16, data >>> 8, data]);
+					appendBytes([0xce, data, data >>> 8, data >>> 16, data >>> 24]);
 				}
 				else if (data >= -0x80000000 && data <= 0x7fffffff) {   // int32
-					appendBytes([0xd2, data >>> 24, data >>> 16, data >>> 8, data]);
+					appendBytes([0xd2, data, data >>> 8, data >>> 16, data >>> 24]);
 				}
 				else if (data > 0 && data <= 0xffffffffffffffff) {   // uint64
 					// Split 64 bit number into two 32 bit numbers because JavaScript only regards
 					// 32 bits for bitwise operations.
 					let hi = data / pow32;
 					let lo = data % pow32;
-					appendBytes([0xd3, hi >>> 24, hi >>> 16, hi >>> 8, hi, lo >>> 24, lo >>> 16, lo >>> 8, lo]);
+					appendBytes([0xd3, lo, lo >>> 8, lo >>> 16, lo >>> 24, hi, hi >>> 8, hi >>> 16, hi >>> 24]);
 				}
 				else if (data >= -0x8000000000000000 && data <= 0x7fffffffffffffff) {   // int64
 					appendByte(0xd3);
@@ -127,7 +127,7 @@
 					floatBuffer = new ArrayBuffer(8);
 					floatView = new DataView(floatBuffer);
 				}
-				floatView.setFloat64(0, data);
+				floatView.setFloat64(0, data, true);
 				appendByte(0xcb);
 				appendBytes(new Uint8Array(floatBuffer));
 			}
@@ -142,9 +142,9 @@
 			else if (length <= 0xff)
 				appendBytes([0xd9, length]);
 			else if (length <= 0xffff)
-				appendBytes([0xda, length >>> 8, length]);
+				appendBytes([0xda, length, length >>> 8]);
 			else
-				appendBytes([0xdb, length >>> 24, length >>> 16, length >>> 8, length]);
+				appendBytes([0xdb, length, length >>> 8, length >>> 16, length >>> 24]);
 
 			appendBytes(bytes);
 		}
@@ -155,9 +155,9 @@
 			if (length <= 0xf)
 				appendByte(0x90 + length);
 			else if (length <= 0xffff)
-				appendBytes([0xdc, length >>> 8, length]);
+				appendBytes([0xdc, length, length >>> 8]);
 			else
-				appendBytes([0xdd, length >>> 24, length >>> 16, length >>> 8, length]);
+				appendBytes([0xdd, length, length >>> 8, length >>> 16, length >>> 24]);
 
 			for (let index = 0; index < length; index++) {
 				append(data[index]);
@@ -170,9 +170,9 @@
 			if (length <= 0xf)
 				appendBytes([0xc4, length]);
 			else if (length <= 0xffff)
-				appendBytes([0xc5, length >>> 8, length]);
+				appendBytes([0xc5, length, length >>> 8]);
 			else
-				appendBytes([0xc6, length >>> 24, length >>> 16, length >>> 8, length]);
+				appendBytes([0xc6, length, length >>> 8, length >>> 16, length >>> 24]);
 
 			appendBytes(data);
 		}
@@ -188,9 +188,9 @@
 			if (length <= 0xf)
 				appendByte(0x80 + length);
 			else if (length <= 0xffff)
-				appendBytes([0xde, length >>> 8, length]);
+				appendBytes([0xde, length, length >>> 8]);
 			else
-				appendBytes([0xdf, length >>> 24, length >>> 16, length >>> 8, length]);
+				appendBytes([0xdf, length, length >>> 8, length >>> 16, length >>> 24]);
 
 			for (let key in data) {
 				let value = data[key];
@@ -204,15 +204,15 @@
 		function appendDate(data) {
 			let sec = data.getTime() / 1000;
 			if (data.getMilliseconds() === 0 && sec >= 0 && sec < 0x100000000) {   // 32 bit seconds
-				appendBytes([0xd6, 0xff, sec >>> 24, sec >>> 16, sec >>> 8, sec]);
+				appendBytes([0xd6, 0xff, sec, sec >>> 8, sec >>> 16, sec >>> 24]);
 			}
 			else if (sec >= 0 && sec < 0x400000000) {   // 30 bit nanoseconds, 34 bit seconds
 				let ns = data.getMilliseconds() * 1000000;
-				appendBytes([0xd7, 0xff, ns >>> 22, ns >>> 14, ns >>> 6, ((ns << 2) >>> 0) | (sec / pow32), sec >>> 24, sec >>> 16, sec >>> 8, sec]);
+				appendBytes([0xd7, 0xff, sec, sec >>> 8, sec >>> 16, sec >>> 24, ((ns << 2) >>> 0) | (sec / pow32), ns >>> 6, ns >>> 14, ns >>> 22]);
 			}
 			else {   // 32 bit nanoseconds, 64 bit seconds, negative values allowed
 				let ns = data.getMilliseconds() * 1000000;
-				appendBytes([0xc7, 12, 0xff, ns >>> 24, ns >>> 16, ns >>> 8, ns]);
+				appendBytes([0xc7, 12, 0xff, ns, ns >>> 8, ns >>> 16, ns >>> 24]);
 				appendInt64(sec);
 			}
 		}
@@ -260,7 +260,7 @@
 				hi = ~hi;
 				lo = ~lo;
 			}
-			appendBytes([hi >>> 24, hi >>> 16, hi >>> 8, hi, lo >>> 24, lo >>> 16, lo >>> 8, lo]);
+			appendBytes([lo, lo >>> 8, lo >>> 16, lo >>> 24, hi, hi >>> 8, hi >>> 16, hi >>> 24]);
 		}
 	}
 
@@ -342,41 +342,38 @@
 		}
 
 		function readInt(size) {
-			let value = 0;
-			let first = true;
-			while (size-- > 0) {
-				if (first) {
-					let byte = array[pos++];
-					value += byte & 0x7f;
-					if (byte & 0x80) {
-						value -= 0x80;   // Treat most-significant bit as -2^i instead of 2^i
-					}
-					first = false;
-				}
-				else {
-					value *= 256;
-					value += array[pos++];
-				}
-			}
-			return value;
+			let view = new DataView(array.buffer, pos + array.byteOffset, size);
+			pos += size;
+			if (size === 1)
+				return view.getInt8(0, true);
+			if (size === 2)
+				return view.getInt16(0, true);
+			if (size === 4)
+				return view.getInt32(0, true);
+			if (size === 8)
+				return view.getInt64(0, true);
 		}
 
 		function readUInt(size) {
-			let value = 0;
-			while (size-- > 0) {
-				value *= 256;
-				value += array[pos++];
-			}
-			return value;
+			let view = new DataView(array.buffer, pos + array.byteOffset, size);
+			pos += size;
+			if (size === 1)
+				return view.getUint8(0, true);
+			if (size === 2)
+				return view.getUint16(0, true);
+			if (size === 4)
+				return view.getUint32(0, true);
+			if (size === 8)
+				return view.getUint64(0, true);
 		}
 
 		function readFloat(size) {
 			let view = new DataView(array.buffer, pos + array.byteOffset, size);
 			pos += size;
 			if (size === 4)
-				return view.getFloat32(0, false);
+				return view.getFloat32(0, true);
 			if (size === 8)
-				return view.getFloat64(0, false);
+				return view.getFloat64(0, true);
 		}
 
 		function readBin(size, lengthSize) {
@@ -425,29 +422,29 @@
 
 		function readExtDate(data) {
 			if (data.length === 4) {
-				let sec = ((data[0] << 24) >>> 0) +
-					((data[1] << 16) >>> 0) +
-					((data[2] << 8) >>> 0) +
-					data[3];
+				let sec = ((data[3] << 24) >>> 0) +
+					((data[2] << 16) >>> 0) +
+					((data[1] << 8) >>> 0) +
+					data[0];
 				return new Date(sec * 1000);
 			}
 			if (data.length === 8) {
-				let ns = ((data[0] << 22) >>> 0) +
-					((data[1] << 14) >>> 0) +
-					((data[2] << 6) >>> 0) +
-					(data[3] >>> 2);
-				let sec = ((data[3] & 0x3) * pow32) +
-					((data[4] << 24) >>> 0) +
-					((data[5] << 16) >>> 0) +
-					((data[6] << 8) >>> 0) +
-					data[7];
+				let ns = ((data[7] << 22) >>> 0) +
+					((data[6] << 14) >>> 0) +
+					((data[5] << 6) >>> 0) +
+					(data[4] >>> 2);
+				let sec = ((data[4] & 0x3) * pow32) +
+					((data[3] << 24) >>> 0) +
+					((data[2] << 16) >>> 0) +
+					((data[1] << 8) >>> 0) +
+					data[0];
 				return new Date(sec * 1000 + ns / 1000000);
 			}
 			if (data.length === 12) {
-				let ns = ((data[0] << 24) >>> 0) +
-					((data[1] << 16) >>> 0) +
-					((data[2] << 8) >>> 0) +
-					data[3];
+				let ns = ((data[3] << 24) >>> 0) +
+					((data[2] << 16) >>> 0) +
+					((data[1] << 8) >>> 0) +
+					data[0];
 				pos -= 8;
 				let sec = readInt(8);
 				return new Date(sec * 1000 + ns / 1000000);

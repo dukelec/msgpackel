@@ -292,11 +292,11 @@ def _pack_integer(obj, fp, options):
         elif obj >= -2**(8 - 1):
             fp.write(b"\xd0" + struct.pack("b", obj))
         elif obj >= -2**(16 - 1):
-            fp.write(b"\xd1" + struct.pack(">h", obj))
+            fp.write(b"\xd1" + struct.pack("<h", obj))
         elif obj >= -2**(32 - 1):
-            fp.write(b"\xd2" + struct.pack(">i", obj))
+            fp.write(b"\xd2" + struct.pack("<i", obj))
         elif obj >= -2**(64 - 1):
-            fp.write(b"\xd3" + struct.pack(">q", obj))
+            fp.write(b"\xd3" + struct.pack("<q", obj))
         else:
             raise UnsupportedTypeException("huge signed int")
     else:
@@ -305,11 +305,11 @@ def _pack_integer(obj, fp, options):
         elif obj < 2**8:
             fp.write(b"\xcc" + struct.pack("B", obj))
         elif obj < 2**16:
-            fp.write(b"\xcd" + struct.pack(">H", obj))
+            fp.write(b"\xcd" + struct.pack("<H", obj))
         elif obj < 2**32:
-            fp.write(b"\xce" + struct.pack(">I", obj))
+            fp.write(b"\xce" + struct.pack("<I", obj))
         elif obj < 2**64:
-            fp.write(b"\xcf" + struct.pack(">Q", obj))
+            fp.write(b"\xcf" + struct.pack("<Q", obj))
         else:
             raise UnsupportedTypeException("huge unsigned int")
 
@@ -326,9 +326,9 @@ def _pack_float(obj, fp, options):
     float_precision = options.get('force_float_precision', _float_precision)
 
     if float_precision == "double":
-        fp.write(b"\xcb" + struct.pack(">d", obj))
+        fp.write(b"\xcb" + struct.pack("<d", obj))
     elif float_precision == "single":
-        fp.write(b"\xca" + struct.pack(">f", obj))
+        fp.write(b"\xca" + struct.pack("<f", obj))
     else:
         raise ValueError("invalid float precision")
 
@@ -341,9 +341,9 @@ def _pack_string(obj, fp, options):
     elif obj_len < 2**8:
         fp.write(b"\xd9" + struct.pack("B", obj_len) + obj)
     elif obj_len < 2**16:
-        fp.write(b"\xda" + struct.pack(">H", obj_len) + obj)
+        fp.write(b"\xda" + struct.pack("<H", obj_len) + obj)
     elif obj_len < 2**32:
-        fp.write(b"\xdb" + struct.pack(">I", obj_len) + obj)
+        fp.write(b"\xdb" + struct.pack("<I", obj_len) + obj)
     else:
         raise UnsupportedTypeException("huge string")
 
@@ -353,9 +353,9 @@ def _pack_binary(obj, fp, options):
     if obj_len < 2**8:
         fp.write(b"\xc4" + struct.pack("B", obj_len) + obj)
     elif obj_len < 2**16:
-        fp.write(b"\xc5" + struct.pack(">H", obj_len) + obj)
+        fp.write(b"\xc5" + struct.pack("<H", obj_len) + obj)
     elif obj_len < 2**32:
-        fp.write(b"\xc6" + struct.pack(">I", obj_len) + obj)
+        fp.write(b"\xc6" + struct.pack("<I", obj_len) + obj)
     else:
         raise UnsupportedTypeException("huge binary string")
 
@@ -365,9 +365,9 @@ def _pack_oldspec_raw(obj, fp, options):
     if obj_len < 32:
         fp.write(struct.pack("B", 0xa0 | obj_len) + obj)
     elif obj_len < 2**16:
-        fp.write(b"\xda" + struct.pack(">H", obj_len) + obj)
+        fp.write(b"\xda" + struct.pack("<H", obj_len) + obj)
     elif obj_len < 2**32:
-        fp.write(b"\xdb" + struct.pack(">I", obj_len) + obj)
+        fp.write(b"\xdb" + struct.pack("<I", obj_len) + obj)
     else:
         raise UnsupportedTypeException("huge raw string")
 
@@ -387,9 +387,9 @@ def _pack_ext(obj, fp, options):
     elif obj_len < 2**8:
         fp.write(b"\xc7" + struct.pack("BB", obj_len, obj.type & 0xff) + obj.data)
     elif obj_len < 2**16:
-        fp.write(b"\xc8" + struct.pack(">HB", obj_len, obj.type & 0xff) + obj.data)
+        fp.write(b"\xc8" + struct.pack("<HB", obj_len, obj.type & 0xff) + obj.data)
     elif obj_len < 2**32:
-        fp.write(b"\xc9" + struct.pack(">IB", obj_len, obj.type & 0xff) + obj.data)
+        fp.write(b"\xc9" + struct.pack("<IB", obj_len, obj.type & 0xff) + obj.data)
     else:
         raise UnsupportedTypeException("huge ext data")
 
@@ -408,14 +408,14 @@ def _pack_ext_timestamp(obj, fp, options):
 
     if microseconds == 0 and 0 <= seconds <= 2**32 - 1:
         # 32-bit timestamp
-        fp.write(b"\xd6\xff" + struct.pack(">I", seconds))
+        fp.write(b"\xd6\xff" + struct.pack("<I", seconds))
     elif 0 <= seconds <= 2**34 - 1:
         # 64-bit timestamp
         value = ((microseconds * 1000) << 34) | seconds
-        fp.write(b"\xd7\xff" + struct.pack(">Q", value))
+        fp.write(b"\xd7\xff" + struct.pack("<Q", value))
     elif -2**63 <= abs(seconds) <= 2**63 - 1:
         # 96-bit timestamp
-        fp.write(b"\xc7\x0c\xff" + struct.pack(">Iq", microseconds * 1000, seconds))
+        fp.write(b"\xc7\x0c\xff" + struct.pack("<Iq", microseconds * 1000, seconds))
     else:
         raise UnsupportedTypeException("huge timestamp")
 
@@ -425,9 +425,9 @@ def _pack_array(obj, fp, options):
     if obj_len < 16:
         fp.write(struct.pack("B", 0x90 | obj_len))
     elif obj_len < 2**16:
-        fp.write(b"\xdc" + struct.pack(">H", obj_len))
+        fp.write(b"\xdc" + struct.pack("<H", obj_len))
     elif obj_len < 2**32:
-        fp.write(b"\xdd" + struct.pack(">I", obj_len))
+        fp.write(b"\xdd" + struct.pack("<I", obj_len))
     else:
         raise UnsupportedTypeException("huge array")
 
@@ -440,9 +440,9 @@ def _pack_map(obj, fp, options):
     if obj_len < 16:
         fp.write(struct.pack("B", 0x80 | obj_len))
     elif obj_len < 2**16:
-        fp.write(b"\xde" + struct.pack(">H", obj_len))
+        fp.write(b"\xde" + struct.pack("<H", obj_len))
     elif obj_len < 2**32:
-        fp.write(b"\xdf" + struct.pack(">I", obj_len))
+        fp.write(b"\xdf" + struct.pack("<I", obj_len))
     else:
         raise UnsupportedTypeException("huge array")
 
@@ -722,21 +722,21 @@ def _unpack_integer(code, fp, options):
     elif code == b'\xd0':
         return struct.unpack("b", _read_except(fp, 1))[0]
     elif code == b'\xd1':
-        return struct.unpack(">h", _read_except(fp, 2))[0]
+        return struct.unpack("<h", _read_except(fp, 2))[0]
     elif code == b'\xd2':
-        return struct.unpack(">i", _read_except(fp, 4))[0]
+        return struct.unpack("<i", _read_except(fp, 4))[0]
     elif code == b'\xd3':
-        return struct.unpack(">q", _read_except(fp, 8))[0]
+        return struct.unpack("<q", _read_except(fp, 8))[0]
     elif (ord(code) & 0x80) == 0x00:
         return struct.unpack("B", code)[0]
     elif code == b'\xcc':
         return struct.unpack("B", _read_except(fp, 1))[0]
     elif code == b'\xcd':
-        return struct.unpack(">H", _read_except(fp, 2))[0]
+        return struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xce':
-        return struct.unpack(">I", _read_except(fp, 4))[0]
+        return struct.unpack("<I", _read_except(fp, 4))[0]
     elif code == b'\xcf':
-        return struct.unpack(">Q", _read_except(fp, 8))[0]
+        return struct.unpack("<Q", _read_except(fp, 8))[0]
     raise Exception("logic error, not int: 0x{:02x}".format(ord(code)))
 
 
@@ -764,9 +764,9 @@ def _unpack_boolean(code, fp, options):
 
 def _unpack_float(code, fp, options):
     if code == b'\xca':
-        return struct.unpack(">f", _read_except(fp, 4))[0]
+        return struct.unpack("<f", _read_except(fp, 4))[0]
     elif code == b'\xcb':
-        return struct.unpack(">d", _read_except(fp, 8))[0]
+        return struct.unpack("<d", _read_except(fp, 8))[0]
     raise Exception("logic error, not float: 0x{:02x}".format(ord(code)))
 
 
@@ -776,9 +776,9 @@ def _unpack_string(code, fp, options):
     elif code == b'\xd9':
         length = struct.unpack("B", _read_except(fp, 1))[0]
     elif code == b'\xda':
-        length = struct.unpack(">H", _read_except(fp, 2))[0]
+        length = struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xdb':
-        length = struct.unpack(">I", _read_except(fp, 4))[0]
+        length = struct.unpack("<I", _read_except(fp, 4))[0]
     else:
         raise Exception("logic error, not string: 0x{:02x}".format(ord(code)))
 
@@ -800,9 +800,9 @@ def _unpack_binary(code, fp, options):
     if code == b'\xc4':
         length = struct.unpack("B", _read_except(fp, 1))[0]
     elif code == b'\xc5':
-        length = struct.unpack(">H", _read_except(fp, 2))[0]
+        length = struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xc6':
-        length = struct.unpack(">I", _read_except(fp, 4))[0]
+        length = struct.unpack("<I", _read_except(fp, 4))[0]
     else:
         raise Exception("logic error, not binary: 0x{:02x}".format(ord(code)))
 
@@ -823,9 +823,9 @@ def _unpack_ext(code, fp, options):
     elif code == b'\xc7':
         length = struct.unpack("B", _read_except(fp, 1))[0]
     elif code == b'\xc8':
-        length = struct.unpack(">H", _read_except(fp, 2))[0]
+        length = struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xc9':
-        length = struct.unpack(">I", _read_except(fp, 4))[0]
+        length = struct.unpack("<I", _read_except(fp, 4))[0]
     else:
         raise Exception("logic error, not ext: 0x{:02x}".format(ord(code)))
 
@@ -855,17 +855,17 @@ def _unpack_ext_timestamp(ext_data, options):
     obj_len = len(ext_data)
     if obj_len == 4:
         # 32-bit timestamp
-        seconds = struct.unpack(">I", ext_data)[0]
+        seconds = struct.unpack("<I", ext_data)[0]
         microseconds = 0
     elif obj_len == 8:
         # 64-bit timestamp
-        value = struct.unpack(">Q", ext_data)[0]
+        value = struct.unpack("<Q", ext_data)[0]
         seconds = value & 0x3ffffffff
         microseconds = (value >> 34) // 1000
     elif obj_len == 12:
         # 96-bit timestamp
-        seconds = struct.unpack(">q", ext_data[4:12])[0]
-        microseconds = struct.unpack(">I", ext_data[0:4])[0] // 1000
+        seconds = struct.unpack("<q", ext_data[4:12])[0]
+        microseconds = struct.unpack("<I", ext_data[0:4])[0] // 1000
     else:
         raise UnsupportedTimestampException(
             "unsupported timestamp with data length {:d}".format(len(ext_data)))
@@ -878,9 +878,9 @@ def _unpack_array(code, fp, options):
     if (ord(code) & 0xf0) == 0x90:
         length = (ord(code) & ~0xf0)
     elif code == b'\xdc':
-        length = struct.unpack(">H", _read_except(fp, 2))[0]
+        length = struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xdd':
-        length = struct.unpack(">I", _read_except(fp, 4))[0]
+        length = struct.unpack("<I", _read_except(fp, 4))[0]
     else:
         raise Exception("logic error, not array: 0x{:02x}".format(ord(code)))
 
@@ -900,9 +900,9 @@ def _unpack_map(code, fp, options):
     if (ord(code) & 0xf0) == 0x80:
         length = (ord(code) & ~0xf0)
     elif code == b'\xde':
-        length = struct.unpack(">H", _read_except(fp, 2))[0]
+        length = struct.unpack("<H", _read_except(fp, 2))[0]
     elif code == b'\xdf':
-        length = struct.unpack(">I", _read_except(fp, 4))[0]
+        length = struct.unpack("<I", _read_except(fp, 4))[0]
     else:
         raise Exception("logic error, not map: 0x{:02x}".format(ord(code)))
 
