@@ -6,11 +6,11 @@ the rest is exactly the same as MessagePack.
 
 
 
-C library: [msgpackel-c](msgpackel-c)
+C library: [msgpackel_c](msgpackel_c)
 
-Python library: [msgpackel-py](msgpackel-py) (u-msgpack-python)
+Python library: [msgpackel_py](msgpackel_py) (u-msgpack-python)
 
-Javascript library: [msgpackel-js](msgpackel-js) (ygoe/msgpack)
+Javascript library: [msgpackel_js](msgpackel_js) (ygoe/msgpack)
 
 
 MIME type for original msgpack: `application/msgpack`  
