@@ -12,7 +12,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from msgpackel_py import umsgpackel
 
 if len(sys.argv) != 3:
-    print("Usage: ./msgpack_little2big.py input_file output_file")
+    print("Usage: ./msgpack_little2big.py input.mpkl output.mpk")
     exit(-1)
 
 with open(sys.argv[1], 'rb') as f:
