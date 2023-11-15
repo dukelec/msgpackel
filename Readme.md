@@ -6,7 +6,7 @@ the rest is exactly the same as MessagePack.
 
 
 
-C library: [msgpackel_c](msgpackel_c)
+C library: [msgpackel_c](msgpackel_c) (big-endian version: [msgpack_c](msgpack_c))
 
 Python library: [msgpackel_py](msgpackel_py) (base on u-msgpack-python)
 
